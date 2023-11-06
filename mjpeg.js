@@ -40,7 +40,7 @@ var MJPEG = (function(module) {
 
                 return self.request.abort();
               } else if (self.contentType.startsWith('image/') && self.request.readyState == 4) {
-                self.img.src = URL.createObjectURL(new Blob([self.request.response], { type: self.request.getResponseHeader('content-type') }));
+                self.img.src = URL.createObjectURL(new Blob([self.request.response], { type: self.contentType }));
                 self.onFrame(self.img);
 
                 if (self.refreshRate > 0 && !isSnapshot) self.frameTimer = setInterval(getFrame, self.refreshRate);
