@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Player</title>
+  </head>
+  <body>
+    <div id="player" />
+  </body>
+  <script src="mjpeg.js"></script>
+  <script>
+    function onErr(text) {
+      console.error(text);
+      player.stop();
+    }
+
+    function onStarted() {
+      console.log('Started');
+    }
+
+    function onStopped() {
+      console.warn('Stopped');
+    }
+
+    var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped});
+    player.start();
+  </script>
+</html>
