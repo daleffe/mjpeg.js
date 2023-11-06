@@ -25,6 +25,9 @@ Parameters available:
 3. Username (_optional_)
 4. Password (_optional_)
 5. Options
+* Image class
+* Image alternative text
+* Image title
 * Timeout (_in ms_)
 * Refresh Rate
 * Events (_see below_)
@@ -37,14 +40,14 @@ Parameters available:
 ### **start()**
 Start sequential capture, if the content is a static JPEG image, or perform authentication and play MJPEG stream:
 ```javascript
-var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped});
+var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onStart: onStarted});
 player.start();
 ```
 
 ### **stop()**
 Stop sequential capture or abort current connection:
 ```javascript
-var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped});
+var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onStop: onStopped});
 player.stop();
 ```
 
@@ -56,7 +59,7 @@ player.snapshot();
 ```
 
 ## Events
-Events are assigned upon object creation:
+Events are assigned at object creation:
 * **onStart**
 * **onStop**
 * **onError**(_JSON_)
