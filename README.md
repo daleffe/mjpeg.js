@@ -64,6 +64,8 @@ Events are assigned at object creation:
 * **onStop**
 * **onError**(_JSON_)
   * _JSON_: Displays the returned status code and request body text.
+* **onFrame**
+ * _event_: Event triggered by ***<img>*** onload.
 
 ```javascript
 function onErr(text) {
@@ -77,5 +79,12 @@ function onStarted() {
 
 function onStopped() {
   console.warn('Stopped');
+}
+
+function onFrame(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  console.log('New frame',e);
 }
 ```

@@ -10,8 +10,9 @@ var MJPEG = (function (module) {
 
         self.onStart = args.onStart || null;
         self.onStop = args.onStop || null;
-        self.onFrame = args.onFrame || null;
         self.onError = args.onError || null;
+
+        self.setFrame = args.setFrame || null;
 
         self.refreshRate = args.refreshRate || 500;
 
@@ -22,6 +23,8 @@ var MJPEG = (function (module) {
         self.img.alt = args.alt || '';
         self.img.title = args.title || '';
         self.imgClass = args.class || '';
+
+        self.img.onload = args.onFrame || undefined;
 
         self.contentType = "";
 
@@ -42,12 +45,12 @@ var MJPEG = (function (module) {
 
                             if (self.contentType.startsWith('multipart/x-mixed-replace;') && self.request.readyState == self.request.LOADING) {
                                 self.img.src = isSnapshot ? '#' : self.url;
-                                self.onFrame(self.img);
+                                self.setFrame(self.img);
 
                                 return self.request.abort();
                             } else if (self.contentType.startsWith('image/') && self.request.readyState == self.request.DONE) {
                                 self.img.src = URL.createObjectURL(new Blob([self.request.response], { type: self.contentType }));
-                                self.onFrame(self.img);
+                                self.setFrame(self.img);
 
                                 if (self.refreshRate > 0 && !isSnapshot) self.frameTimer = setInterval(getFrame, self.refreshRate);
                                 return;
@@ -103,6 +106,8 @@ var MJPEG = (function (module) {
 
                 if (self.frameTimer == 0) getFrame();
             } else {
+                self.img.onload = undefined;
+
                 if (self.onStop) self.onStop();
 
                 clearInterval(self.frameTimer);
@@ -110,8 +115,7 @@ var MJPEG = (function (module) {
                 self.request.abort();
 
                 self.img.src = "";
-                self.img.alt = "";
-                self.img.title = "";
+                self.setFrame(self.img);
             }
         }
 
@@ -124,12 +128,23 @@ var MJPEG = (function (module) {
         var self = this;
 
         function updateFrame(img) {
+            if (img.src.length == 0) img.alt = "";
+            if ((img.src.length == 0) || (img.src == "#")) img.title = "";            
+
             if (container) {
                 const el = container.getElementsByTagName('img');
 
                 if (el.length == 0) {
                     container.append(img);
-                } else { if (el[0].src != img.src) el[0].src = img.src; }
+                } else {
+                    if (img.onload == undefined) el[0].onload = undefined;
+
+                    if (el[0].src != img.src) {
+                        el[0].alt = img.alt;
+                        el[0].title = img.title;
+                        el[0].src = img.src;                        
+                    }
+                }
             }
         }
 
@@ -143,11 +158,12 @@ var MJPEG = (function (module) {
         options.username = username;
         options.password = password;
 
-        options.onFrame = updateFrame;
+        options.setFrame = updateFrame;
 
         if (typeof options.onError !== 'function') options.onError = null;
         if (typeof options.onStart !== 'function') options.onStart = null;
         if (typeof options.onStop !== 'function') options.onStop = null;
+        if (typeof options.onFrame !== 'function') options.onFrame = null;
 
         self.stream = new module.Stream(options);
 
