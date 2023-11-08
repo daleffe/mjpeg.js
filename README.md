@@ -1,12 +1,10 @@
-# MJPEG/JPEG Client for JavaScript
+# MJPEG/JPEG client for JavaScript
 
-Client to provide authenticated MJPEG streams / JPEG snapshot, enabling the continuous request of new frames, emulating the playback of a stream.
+Client to provide authenticated MJPEG/JPEG streams and snapshot.
 
-> Yes, I know this is just a hack to allow the work to get done. The appropriate way would be do endpoint TCP connection and parse the response, extracting the frames and decoding them sequentially, but via browser isn't possible to manage socket connections (i'm not talking about WebSockets). AFAIK Chrome [have an API for this situation](https://developer.chrome.com/docs/extensions/reference/sockets_tcp/) (_deprecated by the way_).
+The **<img>** tag are unable to do authentication (_e.g. http://user:pass@ip:port/path.mjpg_) due to browser limitations.
 
-Using the standard **<img>** tag, we're unable to do authentication (_e.g. http://user:pass@ip:port/path.mjpg_) due to browser limitations.
-
-To solve this problem, [we improve JPEG client](https://github.com/daleffe/js-jpegclient), allowing authenticated MJPEG streams and cameras that only have the snapshot feature (_without MJPEG stream availability_) to be streamed using sequential requests.
+Inspired by [this project](https://github.com/aruntj/mjpeg-readable-stream) [we improve JPEG client](https://github.com/daleffe/jpeg.js),allowing authenticated MJPEG streams and enabling continuous request of new frames, emulating stream playback for cameras that only have snapshot feature.
 
 ## How to use
 
@@ -17,7 +15,7 @@ Add the *mjpeg.js* script to your HTML page:
 
 Create the player and set connection parameters/events as needed:
 ```javascript
-var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped});
+var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped, onFrame: onFrame, onLoad: onLoad});
 ```
 Parameters available:
 1. container element
@@ -25,9 +23,6 @@ Parameters available:
 3. Username (_optional_)
 4. Password (_optional_)
 5. Options
-* Image class
-* Image alternative text
-* Image title
 * Timeout (_in ms_)
 * Refresh Rate
 * Events (_see below_)
@@ -62,14 +57,19 @@ player.snapshot();
 Events are assigned at object creation:
 * **onStart**
 * **onStop**
-* **onError**(_JSON_)
-  * _JSON_: Displays the returned status code and request body text.
+* **onError**(_status code_, _payload_)
+  * _status code_: Response / arbitrary status codes;
+  * _payload_: Displays detailed error message.
 * **onFrame**
- * _event_: Event triggered by ***<img>*** onload.
+  * _raw frame_: Raw blob data.
+* **onLoad**
+  * _event_: Triggered by ***<img>*** onload.
 
 ```javascript
-function onErr(text) {
-  console.error(text);
+function onErr(status, payload) {
+  console.error(status);
+  console.error(payload);
+
   player.stop();
 }
 
@@ -81,10 +81,16 @@ function onStopped() {
   console.warn('Stopped');
 }
 
-function onFrame(e) {
+function onFrame(frame) {
+  console.log('New frame',frame);
+}
+
+function onLoad(e) {
   e.preventDefault();
   e.stopPropagation();
 
-  console.log('New frame',e);
+  console.log('Image loaded',e);
+
+  if (e.target instanceof Image) e.target.onload = undefined;
 }
 ```
