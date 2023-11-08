@@ -12,9 +12,9 @@
   </body>
   <script src="mjpeg.js"></script>
   <script>
-    function onErr(status, message) {
+    function onErr(status, payload) {
       console.error(status);
-      console.error(message);
+      console.error(payload);
 
       player.stop();
     }
@@ -36,6 +36,9 @@
     }
 
     function onLoad(e) {
+      e.preventDefault();
+      e.stopPropagation();
+
       console.log('Image loaded',e);
 
       if (e.target instanceof Image) e.target.onload = undefined;
