@@ -32,15 +32,15 @@ var MJPEG = (function (module) {
 
             self.controller = new AbortController();
 
-            const options = {method: 'GET', mode: 'cors',cache: 'no-store', 'signal': self.controller.signal}
+            const options = { method: 'GET', mode: 'cors', cache: 'no-store', 'signal': self.controller.signal }
 
             if ((typeof self.token === "string" || self.token instanceof String) || ((typeof self.username === "string" || self.username instanceof String) && (typeof self.password === "string" || self.password instanceof String))) {
-                options.headers = new Headers({Authorization: ((self.username.length > 0 && self.password.length > 0) ? "Basic " + btoa(self.username + ':' + self.password) : "Bearer " + self.token)});
+                options.headers = new Headers({ Authorization: ((self.username.length > 0 && self.password.length > 0) ? "Basic " + btoa(self.username + ':' + self.password) : "Bearer " + self.token) });
             }
 
             if (self.timeout > 0) self.connectionTimer = setTimeout(() => { if (self.controller) self.controller.abort(); }, self.timeout);
 
-            fetch(self.url.href, options).then(async(response) => {
+            fetch(self.url.href, options).then(async (response) => {
                 if (response.ok) {
                     if (response.body) {
                         clearInterval(self.connectionTimer);
@@ -48,9 +48,9 @@ var MJPEG = (function (module) {
                         const contentType = response.headers.get('content-type');
 
                         if (contentType == null) {
-                            self.onError(response.status,JSON.stringify({'code': 0}));
+                            self.onError(response.status, JSON.stringify({ 'code': 0 }));
                         } else if (contentType.startsWith('text/plain') || contentType.includes('xml') || contentType.includes('json') || contentType.includes('html')) {
-                            self.onError(response.status,JSON.stringify({'code': 1, 'contentType': contentType, 'message': await response.text()}));
+                            self.onError(response.status, JSON.stringify({ 'code': 1, 'contentType': contentType, 'message': await response.text() }));
                         } else if (contentType.startsWith('image')) {
                             self.setFrame(await response.blob());
 
@@ -65,12 +65,12 @@ var MJPEG = (function (module) {
 
                             const reader = response.body.getReader();
                             const read = () => {
-                                reader.read().then(({done, value}) => {
+                                reader.read().then(({ done, value }) => {
                                     if (done) return;
 
                                     for (let index = 0; index < value.length; index++) {
                                         // we've found start of the frame. Everything we've read till now is the header.
-                                        if (value[index] === 0xFF && value[index+1] === 0xD8) {
+                                        if (value[index] === 0xFF && value[index + 1] === 0xD8) {
                                             headers.split('\n').forEach((header, _) => {
                                                 const pair = header.trim().split(':');
                                                 // Fix for issue https://github.com/aruntj/mjpeg-readable-stream/issues/3 suggested by martapanc
@@ -85,12 +85,12 @@ var MJPEG = (function (module) {
                                         // we're still reading the header.
                                         if (partLen <= 0) {
                                             headers += String.fromCharCode(value[index]);
-                                        } else if (readed < partLen){
+                                        } else if (readed < partLen) {
                                             // we're now reading the jpeg.
                                             if (data) data[readed++] = value[index];
                                         } else {
                                             // we're done reading, time to render it.
-                                            const file = new Blob([data], {type: partType});
+                                            const file = new Blob([data], { type: partType });
 
                                             if (file.type.startsWith('image')) {
                                                 readed = 0;
@@ -102,7 +102,7 @@ var MJPEG = (function (module) {
 
                                                 if (isSnapshot) return;
                                             } else {
-                                                self.onError(response.status,JSON.stringify({'code': 99, 'type':  file.type, 'size': file.size}));
+                                                self.onError(response.status, JSON.stringify({ 'code': 99, 'type': file.type, 'size': file.size }));
                                                 return;
                                             }
                                         }
@@ -110,10 +110,11 @@ var MJPEG = (function (module) {
 
                                     read();
                                 }).catch(error => {
-                                    console.warn("Stream read error",error);
-                                    self.onError(response.status,JSON.stringify({'code': 98, 'message': error.message, 'name': error.name}));
-
-                                })
+                                    if (error.name !== "AbortError") {
+                                        console.warn("Stream read error", error);
+                                        self.onError(response.status, JSON.stringify({ 'code': 98, 'message': error.message, 'name': error.name }));
+                                    }
+                                });
                             }
 
                             read();
@@ -121,7 +122,7 @@ var MJPEG = (function (module) {
                     } else { self.onError(response.status); }
                 } else { self.onError(response.status); }
             }).catch(error => {
-                self.onError(-1,JSON.stringify({'code': -1, 'message': error.message, 'name': error.name}));
+                self.onError(-1, JSON.stringify({ 'code': -1, 'message': error.message, 'name': error.name }));
             }).finally(() => clearInterval(self.connectionTimer));
         }
 
