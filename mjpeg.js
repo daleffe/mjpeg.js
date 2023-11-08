@@ -7,6 +7,7 @@ var MJPEG = (function (module) {
         self.controller = undefined;
 
         self.url = new URL(args.url);
+        self.cors = args.cors || 'cors';
 
         self.username = args.username || '';
         self.password = args.password || '';
@@ -32,7 +33,7 @@ var MJPEG = (function (module) {
 
             self.controller = new AbortController();
 
-            const options = { method: 'GET', mode: 'cors', cache: 'no-store', 'signal': self.controller.signal }
+            const options = { method: 'GET', mode: self.cors, cache: 'no-store', 'signal': self.controller.signal }
 
             if ((typeof self.token === "string" || self.token instanceof String) || ((typeof self.username === "string" || self.username instanceof String) && (typeof self.password === "string" || self.password instanceof String))) {
                 options.headers = new Headers({ Authorization: ((self.username.length > 0 && self.password.length > 0) ? "Basic " + btoa(self.username + ':' + self.password) : "Bearer " + self.token) });
