@@ -4,9 +4,13 @@ var MJPEG = (function (module) {
     module.Stream = function (args) {
         var self = this;
 
-        self.url = args.url;
+        self.controller = undefined;
+
+        self.url = new URL(args.url);
+
         self.username = args.username || '';
         self.password = args.password || '';
+        self.token = args.token || '';
 
         self.onStart = args.onStart || null;
         self.onStop = args.onStop || null;
@@ -14,84 +18,111 @@ var MJPEG = (function (module) {
 
         self.setFrame = args.setFrame || null;
 
-        self.refreshRate = args.refreshRate || 500;
-
         self.running = false;
-        self.frameTimer = 0;
 
-        self.img = new Image();
-        self.img.alt = args.alt || '';
-        self.img.title = args.title || '';
-        self.imgClass = args.class || '';
+        self.timeout = args.timeout || 20000;
+        self.connectionTimer = 0;
 
-        self.img.onload = args.onFrame || undefined;
+        self.refreshInterval = args.refreshInterval || 500;
+        self.refreshTimer = 0;
 
-        self.contentType = "";
+        async function getFrame(isSnapshot = false) {
+            clearInterval(self.connTimer);
+            clearInterval(self.refreshTimer);
 
-        self.request = new XMLHttpRequest();
-        self.request.responseType = 'arraybuffer';
-        self.request.timeout = args.timeout || 20000;
+            self.controller = new AbortController();
 
-        function getFrame(isSnapshot = false) {
-            if (self.frameTimer != 0) clearInterval(self.frameTimer);
+            const options = {method: 'GET', mode: 'cors',cache: 'no-store', 'signal': self.controller.signal}
 
-            if (self.imgClass.length > 0) if (!self.img.hasAttribute('class')) self.img.setAttribute('class', self.imgClass.trim());
-
-            self.request.onreadystatechange = function () {
-                if (self.request.readyState == self.request.LOADING || self.request.readyState == self.request.DONE) {
-                    try {
-                        if (self.request.status == 200) {
-                            self.contentType = self.request.getResponseHeader('content-type').toLowerCase();
-
-                            if (self.contentType.startsWith('multipart/x-mixed-replace;') && self.request.readyState == self.request.LOADING) {
-                                self.img.src = isSnapshot ? '#' : self.url;
-                                self.setFrame(self.img);
-
-                                return self.request.abort();
-                            } else if (self.contentType.startsWith('image/') && self.request.readyState == self.request.DONE) {
-                                self.img.src = URL.createObjectURL(new Blob([self.request.response], { type: self.contentType }));
-                                self.setFrame(self.img);
-
-                                if (self.refreshRate > 0 && !isSnapshot) self.frameTimer = setInterval(getFrame, self.refreshRate);
-                                return;
-                            }
-                        }
-
-                        if (self.request.readyState == self.request.DONE) {
-                            var charset = "utf-8";
-                            var text = "";
-
-                            if (self.contentType.length > 0) {
-                                if (self.contentType.startsWith('multipart/x-mixed-replace;')) return;
-
-                                self.contentType = self.contentType.split(';', 2).map(function (item) {
-                                    return item.trim();
-                                });
-
-                                if (self.contentType[1] !== undefined) if (self.contentType[1].startsWith("charset=")) charset = self.contentType[1].replace("charset=", "");
-
-                                if (self.contentType[0].includes("text") || self.contentType.includes("json") || self.contentType[1].includes("xml")) {
-                                    text = new TextDecoder(charset).decode(self.request.response);
-                                }
-                            }
-
-                            self.onError(JSON.stringify({ status: self.request.status, message: text }));
-                        }
-                    } catch (e) {
-                        self.onError(JSON.stringify({ status: -1, message: JSON.stringify(e) }));
-                    }
-                }
+            if ((typeof self.token === "string" || self.token instanceof String) || ((typeof self.username === "string" || self.username instanceof String) && (typeof self.password === "string" || self.password instanceof String))) {
+                options.headers = new Headers({Authorization: ((self.username.length > 0 && self.password.length > 0) ? "Basic " + btoa(self.username + ':' + self.password) : "Bearer " + self.token)});
             }
 
-            try {
-                self.request.open("GET", self.url, true);
-                if ((typeof self.username === "string" || self.username instanceof String) && (typeof self.password === "string" || self.password instanceof String)) {
-                    if (self.username.length > 0 && self.password.length > 0) self.request.setRequestHeader("Authorization", "Basic " + btoa(self.username + ':' + self.password));
-                }
-                self.request.send();
-            } catch (e) {
-                self.onError(JSON.stringify({ status: -2, message: JSON.stringify(e) }));
-            }
+            if (self.timeout > 0) self.connectionTimer = setTimeout(() => { if (self.controller) self.controller.abort(); }, self.timeout);
+
+            fetch(self.url.href, options).then(async(response) => {
+                if (response.ok) {
+                    if (response.body) {
+                        clearInterval(self.connectionTimer);
+
+                        const contentType = response.headers.get('content-type');
+
+                        if (contentType == null) {
+                            self.onError(response.status,JSON.stringify({'code': 0}));
+                        } else if (contentType.startsWith('text/plain') || contentType.includes('xml') || contentType.includes('json') || contentType.includes('html')) {
+                            self.onError(response.status,JSON.stringify({'code': 1, 'contentType': contentType, 'message': await response.text()}));
+                        } else if (contentType.startsWith('image')) {
+                            self.setFrame(await response.blob());
+
+                            if (!isSnapshot && self.refreshInterval > 0) self.refreshTimer = setInterval(getFrame, self.refreshInterval);
+                        } else if (contentType.startsWith('multipart/x-mixed-replace;')) {
+                            let headers = '';
+                            let data = null;
+
+                            let partType = "";
+                            let partLen = -1;
+                            let readed = 0;
+
+                            const reader = response.body.getReader();
+                            const read = () => {
+                                reader.read().then(({done, value}) => {
+                                    if (done) return;
+
+                                    for (let index = 0; index < value.length; index++) {
+                                        // we've found start of the frame. Everything we've read till now is the header.
+                                        if (value[index] === 0xFF && value[index+1] === 0xD8) {
+                                            headers.split('\n').forEach((header, _) => {
+                                                const pair = header.trim().split(':');
+                                                // Fix for issue https://github.com/aruntj/mjpeg-readable-stream/issues/3 suggested by martapanc
+                                                if (pair[0].toLowerCase() === "content-length") {
+                                                    partLen = pair[1].trim();
+                                                    data = new Uint8Array(new ArrayBuffer(partLen));
+                                                }
+                                                if (pair[0].toLowerCase() == "content-type") partType = pair[1].trim();
+                                            });
+                                        }
+
+                                        // we're still reading the header.
+                                        if (partLen <= 0) {
+                                            headers += String.fromCharCode(value[index]);
+                                        } else if (readed < partLen){
+                                            // we're now reading the jpeg.
+                                            if (data) data[readed++] = value[index];
+                                        } else {
+                                            // we're done reading, time to render it.
+                                            const file = new Blob([data], {type: partType});
+
+                                            if (file.type.startsWith('image')) {
+                                                readed = 0;
+                                                partLen = 0;
+                                                partType = '';
+                                                headers = '';
+
+                                                self.setFrame(file);
+
+                                                if (isSnapshot) return;
+                                            } else {
+                                                self.onError(response.status,JSON.stringify({'code': 99, 'type':  file.type, 'size': file.size}));
+                                                return;
+                                            }
+                                        }
+                                    }
+
+                                    read();
+                                }).catch(error => {
+                                    console.warn("Stream read error",error);
+                                    self.onError(response.status,JSON.stringify({'code': 98, 'message': error.message, 'name': error.name}));
+
+                                })
+                            }
+
+                            read();
+                        }
+                    } else { self.onError(response.status); }
+                } else { self.onError(response.status); }
+            }).catch(error => {
+                self.onError(-1,JSON.stringify({'code': -1, 'message': error.message, 'name': error.name}));
+            }).finally(() => clearInterval(self.connectionTimer));
         }
 
         function takeSnapshot() {
@@ -104,18 +135,14 @@ var MJPEG = (function (module) {
             if (self.running) {
                 if (self.onStart) self.onStart();
 
-                if (self.frameTimer == 0) getFrame();
+                getFrame();
             } else {
-                self.img.onload = undefined;
-
                 if (self.onStop) self.onStop();
 
-                clearInterval(self.frameTimer);
+                clearInterval(self.refreshTimer);
+                clearInterval(self.connectionTimer);
 
-                self.request.abort();
-
-                self.img.src = "";
-                self.setFrame(self.img);
+                if (self.controller) self.controller.abort();
             }
         }
 
@@ -127,43 +154,39 @@ var MJPEG = (function (module) {
     module.Player = function (container, url, username, password, options) {
         var self = this;
 
-        function updateFrame(img) {
-            if (img.src.length == 0) img.alt = "";
-            if ((img.src.length == 0) || (img.src == "#")) img.title = "";            
+        function updateFrame(data) {
+            if (onFrame) onFrame(data);
 
             if (container) {
-                const el = container.getElementsByTagName('img');
+                const frame = URL.createObjectURL(data);
+                container.src = frame;
 
-                if (el.length == 0) {
-                    container.append(img);
-                } else {
-                    if (img.onload == undefined) el[0].onload = undefined;
-
-                    if (el[0].src != img.src) {
-                        el[0].alt = img.alt;
-                        el[0].title = img.title;
-                        el[0].src = img.src;                        
-                    }
-                }
+                window.setTimeout(() => { URL.revokeObjectURL(frame); }, 1000);
             }
         }
 
         if (typeof container === "string" || container instanceof String) {
-            container = document.getElementById(container);
+            container = window.document.getElementById(container);
+        }
+
+        if ((container instanceof Image) == false) {
+            console.error("The container must be a <img> element");
+            return new Error("<img> element required");
         }
 
         if (!options) options = {};
 
         options.url = url;
-        options.username = username;
-        options.password = password;
+        options.username = username || undefined;
+        options.password = password || undefined;
 
         options.setFrame = updateFrame;
+        const onFrame = (typeof options.onFrame !== 'function') ? null : options.onFrame;
+        if (container.onload == undefined || container.onload == null) container.onload = (typeof options.onLoad !== 'function') ? undefined : options.onLoad;
 
         if (typeof options.onError !== 'function') options.onError = null;
         if (typeof options.onStart !== 'function') options.onStart = null;
         if (typeof options.onStop !== 'function') options.onStop = null;
-        if (typeof options.onFrame !== 'function') options.onFrame = null;
 
         self.stream = new module.Stream(options);
 
