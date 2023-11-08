@@ -2,9 +2,9 @@
 
 Client to provide authenticated MJPEG/JPEG streams and snapshot.
 
-The **<img>** tag are unable to do authentication (_e.g. http://user:pass@ip:port/path.mjpg_) due to browser limitations.
+The ```<img>``` tag are unable to do authentication (_e.g. http://user:pass@ip:port/path.mjpg_) due to browser limitations.
 
-Inspired by [this project](https://github.com/aruntj/mjpeg-readable-stream) [we improve JPEG client](https://github.com/daleffe/jpeg.js),allowing authenticated MJPEG streams and enabling continuous request of new frames, emulating stream playback for cameras that only have snapshot feature.
+Inspired by [this project](https://github.com/aruntj/mjpeg-readable-stream) [we improve JPEG client](https://github.com/daleffe/jpeg.js),allowing authenticated MJPEG streams and enabling continuous frame request, emulating stream playback for cameras that only have snapshot feature.
 
 ## How to use
 
