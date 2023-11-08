@@ -5,12 +5,17 @@
     <title>Player</title>
   </head>
   <body>
-    <div id="player" />
+    <img id="player" />
+    <br />
+    <button onclick="manualStart()">Start</button>
+    <button onclick="manualStop()">Stop</button>
   </body>
   <script src="mjpeg.js"></script>
   <script>
-    function onErr(text) {
-      console.error(text);
+    function onErr(status, message) {
+      console.error(status);
+      console.error(message);
+
       player.stop();
     }
 
@@ -20,16 +25,31 @@
 
     function onStopped() {
       console.warn('Stopped');
+
+      // Comment bellow lines to keep last image presented
+      const container = document.getElementById("player");
+      container.removeAttribute("src");
     }
 
-    function onFrame(e) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      console.log('New frame',e);
+    function onFrame(frame) {
+      console.log('New frame',frame);
     }
 
-    var player = new MJPEG.Player("player", "http://<address>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped, onFrame: onFrame});
+    function onLoad(e) {
+      console.log('Image loaded',e);
+
+      if (e.target instanceof Image) e.target.onload = undefined;
+    }
+
+    function manualStart() {
+      if (player) player.start();
+    }
+
+    function manualStop() {
+      if (player) player.stop();
+    }
+
+    var player = new MJPEG.Player("player", "http://<host>:<port>/<path>", "<username>", "<password>", {onError:  onErr, onStart: onStarted, onStop: onStopped, onFrame: onFrame, onLoad: onLoad});
     player.start();
   </script>
 </html>
