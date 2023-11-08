@@ -63,7 +63,7 @@ Events are assigned at object creation:
 * **onFrame**
   * _raw frame_: Raw blob data.
 * **onLoad**
-  * _event_: Triggered by ***<img>*** onload.
+  * _event_: Triggered by ```<img>``` onload.
 
 ```javascript
 function onErr(status, payload) {
